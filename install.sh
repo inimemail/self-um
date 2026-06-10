@@ -110,8 +110,13 @@ download_bundle() {
   tar -xzf "${archive_path}" -C "${TEMP_BUNDLE_ROOT}"
 
   local extracted_dir
-  extracted_dir="$(find "${TEMP_BUNDLE_ROOT}" -maxdepth 1 -type d -name 'umami-*' | head -n 1)"
-  [[ -n "${extracted_dir}" && -f "${extracted_dir}/package.json" && -f "${extracted_dir}/Dockerfile" ]] || die "从 GitHub 准备应用源码失败。"
+  extracted_dir="$(find "${TEMP_BUNDLE_ROOT}" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
+    if [[ -f "${dir}/package.json" && -f "${dir}/Dockerfile" && -f "${dir}/prisma/schema.prisma" ]]; then
+      echo "${dir}"
+      break
+    fi
+  done)"
+  [[ -n "${extracted_dir}" ]] || die "从 GitHub 准备应用源码失败。请确认仓库里已经上传完整项目文件，而不只是 README 或 install.sh。"
 
   echo "${extracted_dir}"
 }
