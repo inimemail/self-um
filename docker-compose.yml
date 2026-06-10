@@ -5,17 +5,19 @@ services:
       context: .
     image: self-um:latest
     ports:
-      - "3000:3000"
+      - "38473:38472"
     environment:
       DATABASE_URL: postgresql://umami:umami@db:5432/umami
       APP_SECRET: replace-me-with-a-random-string
+      PORT: 38472
+      HOSTNAME: 0.0.0.0
     depends_on:
       db:
         condition: service_healthy
     init: true
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "curl http://localhost:3000/api/heartbeat"]
+      test: ["CMD-SHELL", "curl http://localhost:38472/api/heartbeat"]
       interval: 5s
       timeout: 5s
       retries: 5

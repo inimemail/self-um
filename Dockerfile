@@ -54,9 +54,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 38472
 
 ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
+ENV PORT=38472
 
 CMD ["pnpm", "start-docker"]

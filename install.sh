@@ -21,6 +21,8 @@ APP_SERVICE="umami"
 DB_SERVICE="db"
 APP_IMAGE="self-um:latest"
 DEFAULT_INSTALL_PATH="/opt/${APP_NAME}"
+DEFAULT_PUBLIC_PORT="38473"
+APP_INTERNAL_PORT="38472"
 STATE_FILE="/etc/${APP_NAME}_path"
 CRON_TAG_BEGIN="# UMAMI_BACKUP_BEGIN"
 CRON_TAG_END="# UMAMI_BACKUP_END"
@@ -289,15 +291,15 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       APP_SECRET: ${APP_SECRET}
-      PORT: 3000
+      PORT: 38472
       HOSTNAME: 0.0.0.0
     ports:
-      - "${PORT}:3000"
+      - "${PORT}:38472"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/heartbeat || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:38472/api/heartbeat || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -352,7 +354,7 @@ ensure_runtime_env_file() {
   local env_file="${workdir}/.env"
   local port db_name db_user db_password app_secret
 
-  port="$(read_env_value "${env_file}" PORT "3000")"
+  port="$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")"
   db_name="$(read_env_value "${env_file}" POSTGRES_DB "umami")"
   db_user="$(read_env_value "${env_file}" POSTGRES_USER "umami")"
   db_password="$(read_env_value "${env_file}" POSTGRES_PASSWORD "$(generate_secret)")"
@@ -373,7 +375,7 @@ print_access_info() {
   local env_file="$1"
   local server_ip port
   server_ip="$(get_local_ip)"
-  port="$(read_env_value "${env_file}" PORT "3000")"
+  port="$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")"
 
   echo
   echo "=================================================="
@@ -407,8 +409,8 @@ deploy_service() {
     fi
   fi
 
-  read -r -p "对外端口 [默认: 3000]: " input_port
-  port="${input_port:-3000}"
+  read -r -p "对外端口 [默认: ${DEFAULT_PUBLIC_PORT}]: " input_port
+  port="${input_port:-$DEFAULT_PUBLIC_PORT}"
   db_password="$(generate_secret)"
   app_secret="$(generate_secret)"
   bundle_dir="$(get_install_bundle_dir)"
