@@ -1,5 +1,5 @@
 ARG NODE_IMAGE_VERSION="22-alpine"
-ARG PNPM_VERSION="9.15.9"
+ARG PNPM_VERSION="10"
 
 # Install dependencies only when needed
 FROM node:${NODE_IMAGE_VERSION} AS deps
@@ -7,7 +7,7 @@ ARG PNPM_VERSION
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN npm install -g pnpm@${PNPM_VERSION}
 RUN pnpm install --frozen-lockfile
 

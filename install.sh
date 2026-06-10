@@ -260,12 +260,14 @@ fix_app_dockerfile() {
   [[ -f "${dockerfile}" ]] || return
 
   if grep -q "pnpm --allow-build=.*install --frozen-lockfile" "${dockerfile}" \
-    || grep -q "^RUN npm install -g pnpm$" "${dockerfile}"; then
+    || grep -q "^RUN npm install -g pnpm" "${dockerfile}" \
+    || grep -q "^COPY package.json pnpm-lock.yaml ./" "${dockerfile}"; then
     info "正在修正 Dockerfile 中的 pnpm 安装命令..."
     sed -i \
-      -e "s|^RUN npm install -g pnpm$|RUN npm install -g pnpm@9.15.9|" \
-      -e "s|^RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' install --frozen-lockfile$|RUN pnpm install --frozen-lockfile|" \
-      -e 's|^RUN pnpm --allow-build="@prisma/engines" --allow-build="prisma" install --frozen-lockfile$|RUN pnpm install --frozen-lockfile|' \
+      -e 's|^ARG PNPM_VERSION=.*$|ARG PNPM_VERSION="10"|' \
+      -e "s|^COPY package.json pnpm-lock.yaml ./$|COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./|" \
+      -e "s|^RUN npm install -g pnpm.*$|RUN npm install -g pnpm@10|" \
+      -e "s|^RUN pnpm --allow-build=.* install --frozen-lockfile$|RUN pnpm install --frozen-lockfile|" \
       "${dockerfile}"
   fi
 }
