@@ -29,6 +29,7 @@ CRON_TAG_END="# UMAMI_BACKUP_END"
 BACKUP_LOG="/var/log/${APP_NAME}_backup.log"
 REPO_ARCHIVE_URL="https://github.com/inimemail/self-um/archive/refs/heads/main.tar.gz"
 TEMP_BUNDLE_ROOT=""
+TEMP_SWAP_FILE=""
 
 info() { echo -e "\033[32m[INFO]\033[0m $1" >&2; }
 warn() { echo -e "\033[33m[WARN]\033[0m $1" >&2; }
@@ -41,7 +42,22 @@ cleanup_temp_bundle() {
   fi
 }
 
-trap cleanup_temp_bundle EXIT
+cleanup_build_swap() {
+  if [[ -n "${TEMP_SWAP_FILE}" ]]; then
+    if swapon --show=NAME --noheadings 2>/dev/null | grep -Fxq "${TEMP_SWAP_FILE}"; then
+      swapoff "${TEMP_SWAP_FILE}" 2>/dev/null || true
+    fi
+    rm -f "${TEMP_SWAP_FILE}"
+    TEMP_SWAP_FILE=""
+  fi
+}
+
+cleanup_all() {
+  cleanup_temp_bundle
+  cleanup_build_swap
+}
+
+trap cleanup_all EXIT
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -413,6 +429,54 @@ wait_for_app() {
   die "应用未能正常启动。"
 }
 
+enable_build_swap() {
+  local workdir="$1"
+  local swap_size_mb="${BUILD_SWAP_SIZE_MB:-2048}"
+
+  if [[ "${swap_size_mb}" == "0" ]]; then
+    return
+  fi
+
+  if [[ "$(awk '/SwapTotal/ { print $2 }' /proc/meminfo 2>/dev/null || echo 0)" -gt 0 ]]; then
+    return
+  fi
+
+  require_cmd mkswap
+  require_cmd swapon
+  require_cmd swapoff
+
+  TEMP_SWAP_FILE="${workdir}/.build.swap"
+  if [[ -f "${TEMP_SWAP_FILE}" ]]; then
+    rm -f "${TEMP_SWAP_FILE}"
+  fi
+
+  info "未检测到 swap，正在临时创建 ${swap_size_mb}MB 构建 swap..."
+  if command -v fallocate >/dev/null 2>&1; then
+    fallocate -l "${swap_size_mb}M" "${TEMP_SWAP_FILE}"
+  else
+    dd if=/dev/zero of="${TEMP_SWAP_FILE}" bs=1M count="${swap_size_mb}" status=none
+  fi
+
+  chmod 600 "${TEMP_SWAP_FILE}"
+  mkswap "${TEMP_SWAP_FILE}" >/dev/null
+  swapon "${TEMP_SWAP_FILE}" || {
+    rm -f "${TEMP_SWAP_FILE}"
+    TEMP_SWAP_FILE=""
+    warn "临时 swap 启用失败，将继续尝试构建。"
+  }
+}
+
+build_and_start() {
+  local workdir="$1"
+
+  enable_build_swap "${workdir}"
+  (
+    cd "${workdir}" || exit 1
+    compose_cmd up -d --build --force-recreate
+  )
+  cleanup_build_swap
+}
+
 deploy_service() {
   require_docker
   require_compose
@@ -449,10 +513,7 @@ deploy_service() {
 
   echo "${install_path}" > "${STATE_FILE}"
 
-  (
-    cd "${install_path}" || exit 1
-    compose_cmd up -d --build --force-recreate
-  )
+  build_and_start "${install_path}"
 
   wait_for_app "${install_path}"
   print_access_info "${install_path}/.env"
@@ -475,10 +536,7 @@ upgrade_service() {
   ensure_data_permissions "${workdir}"
   copy_manage_script "${workdir}" "${bundle_dir}"
 
-  (
-    cd "${workdir}" || exit 1
-    compose_cmd up -d --build --force-recreate
-  )
+  build_and_start "${workdir}"
 
   wait_for_app "${workdir}"
   print_access_info "${workdir}/.env"
@@ -665,10 +723,7 @@ restore_service() {
     rm -f "${target_dir}/database.sql"
   fi
 
-  (
-    cd "${target_dir}" || exit 1
-    compose_cmd up -d --build --force-recreate
-  )
+  build_and_start "${target_dir}"
 
   wait_for_app "${target_dir}"
   print_access_info "${target_dir}/.env"
