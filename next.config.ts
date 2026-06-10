@@ -197,7 +197,6 @@ export default withNextIntl({
     selfRecord,
   },
   basePath,
-  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

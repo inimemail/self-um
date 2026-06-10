@@ -25,14 +25,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
 
 RUN npm run build-docker
-RUN mkdir -p .next/static \
-    && if [ -d .next/standalone/.next/static ]; then cp -a .next/standalone/.next/static/. .next/static/; fi
 
 # Production image, copy all the files and run next
 FROM node:${NODE_IMAGE_VERSION} AS runner
 WORKDIR /app
 
-ARG PRISMA_VERSION="7.6.0"
 ARG PNPM_VERSION
 ARG NODE_OPTIONS
 
@@ -46,22 +43,14 @@ RUN set -x \
     && apk add --no-cache curl \
     && npm install -g pnpm@${PNPM_VERSION}
 
-# Script dependencies
-RUN pnpm add npm-run-all dotenv chalk semver \
-    prisma@${PRISMA_VERSION} \
-    @prisma/client@${PRISMA_VERSION} \
-    @prisma/adapter-pg@${PRISMA_VERSION}
-
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/generated ./generated
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
 USER nextjs
 
