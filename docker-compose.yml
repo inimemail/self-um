@@ -1,7 +1,9 @@
 ---
 services:
   umami:
-    image: ghcr.io/umami-software/umami:latest
+    build:
+      context: .
+    image: self-um:latest
     ports:
       - "3000:3000"
     environment:
