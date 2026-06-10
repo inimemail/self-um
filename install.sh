@@ -289,15 +289,15 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       APP_SECRET: ${APP_SECRET}
-      PORT: 3000
+      PORT: ${PORT}
       HOSTNAME: 0.0.0.0
     ports:
-      - "${PORT}:3000"
+      - "${PORT}:${PORT}"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/heartbeat || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:$${PORT}/api/heartbeat || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
