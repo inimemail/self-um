@@ -389,6 +389,30 @@ print_access_info() {
   echo
 }
 
+wait_for_app() {
+  local workdir="$1"
+  local env_file="${workdir}/.env"
+  local public_port
+  public_port="$(read_env_value "${env_file}" PUBLIC_PORT "$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")")"
+
+  info "正在等待应用启动..."
+  for _ in $(seq 1 60); do
+    if curl -fsS "http://127.0.0.1:${public_port}/api/heartbeat" >/dev/null 2>&1; then
+      info "应用健康检查通过。"
+      return
+    fi
+    sleep 2
+  done
+
+  err "应用健康检查失败，下面是当前容器状态和最近日志："
+  (
+    cd "${workdir}" || exit 1
+    compose_cmd ps || true
+    compose_cmd logs --tail 120 "${APP_SERVICE}" || true
+  ) >&2
+  die "应用未能正常启动。"
+}
+
 deploy_service() {
   require_docker
   require_compose
@@ -430,6 +454,7 @@ deploy_service() {
     compose_cmd up -d --build --force-recreate
   )
 
+  wait_for_app "${install_path}"
   print_access_info "${install_path}/.env"
 }
 
@@ -455,6 +480,7 @@ upgrade_service() {
     compose_cmd up -d --build --force-recreate
   )
 
+  wait_for_app "${workdir}"
   print_access_info "${workdir}/.env"
 }
 
@@ -644,6 +670,7 @@ restore_service() {
     compose_cmd up -d --build --force-recreate
   )
 
+  wait_for_app "${target_dir}"
   print_access_info "${target_dir}/.env"
 }
 

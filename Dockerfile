@@ -24,7 +24,9 @@ ENV BASE_PATH=$BASE_PATH
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
 
-RUN npm run build-docker
+RUN npm run build-docker \
+    && test -f .next/BUILD_ID \
+    || (echo "Next production build was not created." >&2; find .next -maxdepth 2 -type f 2>/dev/null | head -50 >&2; exit 1)
 
 # Production image, copy all the files and run next
 FROM node:${NODE_IMAGE_VERSION} AS runner
