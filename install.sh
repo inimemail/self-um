@@ -294,7 +294,7 @@ services:
       PORT: 38472
       HOSTNAME: 0.0.0.0
     ports:
-      - "${PORT}:38472"
+      - "${PUBLIC_PORT}:38472"
     depends_on:
       db:
         condition: service_healthy
@@ -339,7 +339,7 @@ write_runtime_env() {
   local app_secret="$6"
 
   cat > "${target_file}" <<EOF
-PORT=${port}
+PUBLIC_PORT=${port}
 POSTGRES_DB=${db_name}
 POSTGRES_USER=${db_user}
 POSTGRES_PASSWORD=${db_password}
@@ -354,7 +354,7 @@ ensure_runtime_env_file() {
   local env_file="${workdir}/.env"
   local port db_name db_user db_password app_secret
 
-  port="$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")"
+  port="$(read_env_value "${env_file}" PUBLIC_PORT "$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")")"
   db_name="$(read_env_value "${env_file}" POSTGRES_DB "umami")"
   db_user="$(read_env_value "${env_file}" POSTGRES_USER "umami")"
   db_password="$(read_env_value "${env_file}" POSTGRES_PASSWORD "$(generate_secret)")"
@@ -375,7 +375,7 @@ print_access_info() {
   local env_file="$1"
   local server_ip port
   server_ip="$(get_local_ip)"
-  port="$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")"
+  port="$(read_env_value "${env_file}" PUBLIC_PORT "$(read_env_value "${env_file}" PORT "${DEFAULT_PUBLIC_PORT}")")"
 
   echo
   echo "=================================================="
