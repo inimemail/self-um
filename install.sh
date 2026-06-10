@@ -289,6 +289,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       APP_SECRET: ${APP_SECRET}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
     ports:
       - "${PORT}:3000"
     depends_on:
