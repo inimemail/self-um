@@ -193,6 +193,22 @@ get_workdir() {
   echo ""
 }
 
+get_uninstall_workdir() {
+  local workdir
+  workdir="$(get_workdir)"
+  if [[ -n "${workdir}" ]]; then
+    echo "${workdir}"
+    return
+  fi
+
+  if [[ -d "${DEFAULT_INSTALL_PATH}" ]]; then
+    echo "${DEFAULT_INSTALL_PATH}"
+    return
+  fi
+
+  echo ""
+}
+
 copy_manage_script() {
   local install_path="$1"
   local bundle_dir="${2:-}"
@@ -702,7 +718,7 @@ uninstall_service() {
   require_compose
 
   local workdir
-  workdir="$(get_workdir)"
+  workdir="$(get_uninstall_workdir)"
   [[ -n "${workdir}" ]] || die "未检测到已部署实例。"
 
   warn "该操作会删除容器以及 ${workdir} 下的全部应用、数据库和备份数据。"
@@ -713,10 +729,14 @@ uninstall_service() {
     return
   fi
 
-  (
-    cd "${workdir}" || exit 1
-    compose_cmd down -v || true
-  )
+  if [[ -f "${workdir}/docker-compose.yml" ]]; then
+    (
+      cd "${workdir}" || exit 1
+      compose_cmd down -v || true
+    )
+  else
+    warn "未找到 docker-compose.yml，将只删除安装目录和状态文件。"
+  fi
 
   rm -rf "${workdir}"
   rm -f "${STATE_FILE}"
@@ -775,7 +795,16 @@ main_menu() {
 }
 
 dispatch_command() {
-  case "${1:-}" in
+  local command="${1:-}"
+  if [[ -z "${command}" ]]; then
+    case "${0:-}" in
+      install|upgrade|stop|restart|status|logs|backup|restore|cron|uninstall|run-backup)
+        command="${0}"
+        ;;
+    esac
+  fi
+
+  case "${command}" in
     run-backup) do_backup ;;
     install) deploy_service ;;
     upgrade) upgrade_service ;;
@@ -795,7 +824,7 @@ dispatch_command() {
       done
       ;;
     *)
-      err "不支持的命令: ${1}"
+      err "不支持的命令: ${command}"
       echo "可用命令: install | upgrade | stop | restart | status | logs | backup | restore | cron | uninstall | run-backup"
       exit 1
       ;;
