@@ -19,6 +19,7 @@ APP_NAME="umami"
 APP_TITLE="Umami"
 APP_SERVICE="umami"
 DB_SERVICE="db"
+APP_IMAGE="self-um:latest"
 DEFAULT_INSTALL_PATH="/opt/${APP_NAME}"
 STATE_FILE="/etc/${APP_NAME}_path"
 CRON_TAG_BEGIN="# UMAMI_BACKUP_BEGIN"
@@ -260,6 +261,7 @@ services:
   umami:
     build:
       context: ./app
+    image: self-um:latest
     container_name: umami
     restart: unless-stopped
     init: true
@@ -732,11 +734,15 @@ uninstall_service() {
   if [[ -f "${workdir}/docker-compose.yml" ]]; then
     (
       cd "${workdir}" || exit 1
-      compose_cmd down -v || true
+      compose_cmd down --rmi local -v --remove-orphans || true
     )
   else
     warn "未找到 docker-compose.yml，将只删除安装目录和状态文件。"
   fi
+
+  docker rm -f "${APP_SERVICE}" "${APP_NAME}-db" 2>/dev/null || true
+  docker image rm -f "${APP_IMAGE}" "${APP_NAME}-${APP_SERVICE}" 2>/dev/null || true
+  docker volume rm -f "${APP_NAME}_${APP_NAME}-db-data" "${APP_NAME}-db-data" "self-um_${APP_NAME}-db-data" 2>/dev/null || true
 
   rm -rf "${workdir}"
   rm -f "${STATE_FILE}"
