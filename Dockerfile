@@ -25,6 +25,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
 
 RUN npm run build-docker
+RUN mkdir -p .next/static \
+    && if [ -d .next/standalone/.next/static ]; then cp -a .next/standalone/.next/static/. .next/static/; fi
 
 # Production image, copy all the files and run next
 FROM node:${NODE_IMAGE_VERSION} AS runner
