@@ -253,6 +253,23 @@ sync_app_bundle() {
     -cf - -C "${source_dir}" . | tar -xf - -C "${target_dir}"
 }
 
+fix_app_dockerfile() {
+  local app_dir="$1"
+  local dockerfile="${app_dir}/Dockerfile"
+
+  [[ -f "${dockerfile}" ]] || return
+
+  if grep -q "pnpm --allow-build=.*install --frozen-lockfile" "${dockerfile}" \
+    || grep -q "^RUN npm install -g pnpm$" "${dockerfile}"; then
+    info "正在修正 Dockerfile 中的 pnpm 安装命令..."
+    sed -i \
+      -e "s|^RUN npm install -g pnpm$|RUN npm install -g pnpm@9.15.9|" \
+      -e "s|^RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' install --frozen-lockfile$|RUN pnpm install --frozen-lockfile|" \
+      -e 's|^RUN pnpm --allow-build="@prisma/engines" --allow-build="prisma" install --frozen-lockfile$|RUN pnpm install --frozen-lockfile|' \
+      "${dockerfile}"
+  fi
+}
+
 write_compose_file() {
   local install_path="$1"
 
@@ -394,6 +411,7 @@ deploy_service() {
 
   mkdir -p "${install_path}/app"
   sync_app_bundle "${bundle_dir}" "${install_path}/app"
+  fix_app_dockerfile "${install_path}/app"
   write_compose_file "${install_path}"
   write_runtime_env "${install_path}/.env" "${port}" "umami" "umami" "${db_password}" "${app_secret}"
   ensure_data_permissions "${install_path}"
@@ -420,6 +438,7 @@ upgrade_service() {
 
   bundle_dir="$(get_upgrade_bundle_dir "${workdir}")"
   sync_app_bundle "${bundle_dir}" "${workdir}/app"
+  fix_app_dockerfile "${workdir}/app"
   write_compose_file "${workdir}"
   ensure_runtime_env_file "${workdir}"
   ensure_data_permissions "${workdir}"
