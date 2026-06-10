@@ -427,7 +427,7 @@ deploy_service() {
 
   (
     cd "${install_path}" || exit 1
-    compose_cmd up -d --build
+    compose_cmd up -d --build --force-recreate
   )
 
   print_access_info "${install_path}/.env"
@@ -452,7 +452,7 @@ upgrade_service() {
 
   (
     cd "${workdir}" || exit 1
-    compose_cmd up -d --build
+    compose_cmd up -d --build --force-recreate
   )
 
   print_access_info "${workdir}/.env"
@@ -641,7 +641,7 @@ restore_service() {
 
   (
     cd "${target_dir}" || exit 1
-    compose_cmd up -d --build
+    compose_cmd up -d --build --force-recreate
   )
 
   print_access_info "${target_dir}/.env"
