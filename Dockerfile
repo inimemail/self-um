@@ -38,7 +38,8 @@ RUN npm run build-docker; \
       echo "Partial .next files:" >&2; \
       find .next -maxdepth 2 -type f 2>/dev/null | head -80 >&2 || true; \
       exit 1; \
-    fi
+    fi; \
+    rm -rf .next/cache
 
 # Production image, copy all the files and run next
 FROM node:${NODE_IMAGE_VERSION} AS runner
