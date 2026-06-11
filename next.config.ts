@@ -197,8 +197,15 @@ export default withNextIntl({
     selfRecord,
   },
   basePath,
+  outputFileTracingRoot: process.cwd(),
   typescript: {
     ignoreBuildErrors: true,
+  },
+  experimental: {
+    cpus: 2,
+    staticGenerationMaxConcurrency: 2,
+    staticGenerationRetryCount: 2,
+    webpackMemoryOptimizations: true,
   },
   devIndicators: false,
   async headers() {

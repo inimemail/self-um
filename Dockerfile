@@ -23,10 +23,22 @@ ARG BASE_PATH
 ENV BASE_PATH=$BASE_PATH
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-RUN npm run build-docker \
-    && test -f .next/BUILD_ID \
-    || (echo "Next production build was not created." >&2; find .next -maxdepth 2 -type f 2>/dev/null | head -50 >&2; exit 1)
+RUN npm run build-docker; \
+    build_status=$?; \
+    if [ "${build_status}" -ne 0 ]; then \
+      echo "Docker build failed while running npm run build-docker (exit ${build_status})." >&2; \
+      echo "Partial .next files:" >&2; \
+      find .next -maxdepth 2 -type f 2>/dev/null | head -80 >&2 || true; \
+      exit "${build_status}"; \
+    fi; \
+    if [ ! -f .next/BUILD_ID ]; then \
+      echo "Next production build finished, but .next/BUILD_ID was not created." >&2; \
+      echo "Partial .next files:" >&2; \
+      find .next -maxdepth 2 -type f 2>/dev/null | head -80 >&2 || true; \
+      exit 1; \
+    fi
 
 # Production image, copy all the files and run next
 FROM node:${NODE_IMAGE_VERSION} AS runner

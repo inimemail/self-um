@@ -431,7 +431,7 @@ wait_for_app() {
 
 enable_build_swap() {
   local workdir="$1"
-  local swap_size_mb="${BUILD_SWAP_SIZE_MB:-2048}"
+  local swap_size_mb="${BUILD_SWAP_SIZE_MB:-4096}"
 
   if [[ "${swap_size_mb}" == "0" ]]; then
     return
