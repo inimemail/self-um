@@ -39,7 +39,7 @@ const REFERRER_DOMAINS = [
   null,
 ];
 
-const GENERATOR_TICKS_PER_HOUR = 12;
+export const GENERATOR_TICKS_PER_HOUR = 12;
 
 function randomChoice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -49,7 +49,7 @@ function randomRecentDate() {
   return subHours(new Date(), Math.random() * 2);
 }
 
-function getVisitsForTick(visitsPerHour: number) {
+export function getVisitsForTick(visitsPerHour: number) {
   if (!Number.isFinite(visitsPerHour) || visitsPerHour <= 0) {
     return 0;
   }
@@ -106,6 +106,10 @@ export async function generateFakeVisit(websiteId: string, website?: WebsiteReco
 }
 
 export async function generateBatchFakeVisits(websiteId: string, count: number) {
+  if (count <= 0) {
+    return { visits: 0, pageviews: 0 };
+  }
+
   const website = await prisma.client.website.findUnique({
     where: { id: websiteId },
   });
@@ -131,10 +135,18 @@ export async function runFakeVisitGenerator() {
     },
   });
 
+  if (configs.length === 0) {
+    console.log('[Data Amplifier] No websites enabled for fake visits.');
+    return;
+  }
+
   for (const config of configs) {
     const visitsToGenerate = getVisitsForTick(config.fakeVisitsPerHour);
 
     if (visitsToGenerate <= 0) {
+      console.log(
+        `[Data Amplifier] Skipped ${config.websiteId}; fake visits per hour is ${config.fakeVisitsPerHour}.`,
+      );
       continue;
     }
 

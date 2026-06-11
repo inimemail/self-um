@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { uuid } from '@/lib/crypto';
 import { clearAmplifierCache, DEFAULT_AMPLIFIER_CONFIG } from '@/lib/data-amplifier';
+import { generateBatchFakeVisits, getVisitsForTick } from '@/lib/fake-visit-generator';
 import prisma from '@/lib/prisma';
 import { parseRequest } from '@/lib/request';
 import { json, unauthorized } from '@/lib/response';
 import { canUpdateWebsite } from '@/permissions';
+
+const INITIAL_FAKE_VISIT_LIMIT = 10;
 
 const amplifierSchema = z.object({
   enabled: z.boolean().optional(),
@@ -107,7 +110,21 @@ export async function POST(
 
   clearAmplifierCache(websiteId);
 
-  return json(serializeConfig(config));
+  let generated;
+
+  if (config.enabled && config.generateFakeVisits && config.fakeVisitsPerHour > 0) {
+    const initialVisits = Math.max(
+      1,
+      Math.min(INITIAL_FAKE_VISIT_LIMIT, getVisitsForTick(config.fakeVisitsPerHour)),
+    );
+
+    generated = await generateBatchFakeVisits(websiteId, initialVisits);
+  }
+
+  return json({
+    ...serializeConfig(config),
+    generated,
+  });
 }
 
 export async function DELETE(
