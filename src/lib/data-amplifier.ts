@@ -5,10 +5,13 @@ export interface AmplifierConfig {
   amplifyMultiplier: number;
   generateFakeVisits: boolean;
   fakeVisitsPerHour: number;
+  trafficTemplate: TrafficTemplate;
   amplifyPageviews: boolean;
   amplifyEvents: boolean;
   amplifyActiveUsers: boolean;
 }
+
+export type TrafficTemplate = 'blog' | 'forum' | 'general' | 'movie' | 'shop';
 
 export type AmplifierDataType = 'active' | 'events' | 'metrics' | 'pageviews' | 'stats';
 
@@ -20,6 +23,7 @@ export const DEFAULT_AMPLIFIER_CONFIG: AmplifierConfig = {
   amplifyMultiplier: 10,
   generateFakeVisits: false,
   fakeVisitsPerHour: 50,
+  trafficTemplate: 'general',
   amplifyPageviews: true,
   amplifyEvents: true,
   amplifyActiveUsers: true,
@@ -57,6 +61,7 @@ export async function getAmplifierConfig(websiteId: string): Promise<AmplifierCo
         amplifyMultiplier: Number(config.amplifyMultiplier),
         generateFakeVisits: config.generateFakeVisits,
         fakeVisitsPerHour: config.fakeVisitsPerHour,
+        trafficTemplate: (config.trafficTemplate || 'general') as TrafficTemplate,
         amplifyPageviews: config.amplifyPageviews,
         amplifyEvents: config.amplifyEvents,
         amplifyActiveUsers: config.amplifyActiveUsers,

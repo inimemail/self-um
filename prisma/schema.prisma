@@ -408,6 +408,7 @@ model DataAmplifierConfig {
   amplifyMultiplier    Decimal   @default(10.0) @map("amplify_multiplier") @db.Decimal(10, 2)
   generateFakeVisits   Boolean   @default(false) @map("generate_fake_visits")
   fakeVisitsPerHour    Int       @default(50) @map("fake_visits_per_hour")
+  trafficTemplate      String    @default("general") @map("traffic_template") @db.VarChar(32)
   amplifyPageviews     Boolean   @default(true) @map("amplify_pageviews")
   amplifyEvents        Boolean   @default(true) @map("amplify_events")
   amplifyActiveUsers   Boolean   @default(true) @map("amplify_active_users")

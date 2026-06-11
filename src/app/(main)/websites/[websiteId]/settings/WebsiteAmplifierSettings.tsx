@@ -1,17 +1,28 @@
-import { Button, Column, Label, Row, Slider, Switch, useToast } from '@umami/react-zen';
+import { Button, Column, Label, ListItem, Row, Select, Slider, Switch, useToast } from '@umami/react-zen';
 import { useEffect, useState } from 'react';
 import { LoadingPanel } from '@/components/common/LoadingPanel';
 import { useApi, useMessages, useModified } from '@/components/hooks';
+
+type TrafficTemplate = 'blog' | 'forum' | 'general' | 'movie' | 'shop';
 
 interface AmplifierConfig {
   enabled: boolean;
   amplifyMultiplier: number;
   generateFakeVisits: boolean;
   fakeVisitsPerHour: number;
+  trafficTemplate: TrafficTemplate;
   amplifyPageviews: boolean;
   amplifyEvents: boolean;
   amplifyActiveUsers: boolean;
 }
+
+const TRAFFIC_TEMPLATES: Array<{ id: TrafficTemplate; label: string }> = [
+  { id: 'movie', label: '影视站' },
+  { id: 'blog', label: '博客站' },
+  { id: 'shop', label: '电商站' },
+  { id: 'forum', label: '论坛社区' },
+  { id: 'general', label: '通用站' },
+];
 
 export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
   const { get, post, useMutation, useQuery } = useApi();
@@ -29,6 +40,7 @@ export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
   const [amplifyMultiplier, setAmplifyMultiplier] = useState(10);
   const [generateFakeVisits, setGenerateFakeVisits] = useState(false);
   const [fakeVisitsPerHour, setFakeVisitsPerHour] = useState(50);
+  const [trafficTemplate, setTrafficTemplate] = useState<TrafficTemplate>('general');
 
   useEffect(() => {
     if (!data) {
@@ -39,6 +51,7 @@ export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
     setAmplifyMultiplier(data.amplifyMultiplier);
     setGenerateFakeVisits(data.generateFakeVisits);
     setFakeVisitsPerHour(data.fakeVisitsPerHour);
+    setTrafficTemplate(data.trafficTemplate || 'general');
   }, [data]);
 
   const handleSave = async () => {
@@ -47,6 +60,7 @@ export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
       amplifyMultiplier,
       generateFakeVisits,
       fakeVisitsPerHour,
+      trafficTemplate,
       amplifyPageviews: true,
       amplifyEvents: true,
       amplifyActiveUsers: true,
@@ -59,12 +73,12 @@ export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
   return (
     <LoadingPanel data={data} isLoading={isLoading} error={error}>
       <Column gap="4">
-        <Label>Data amplifier</Label>
+        <Label>数据放大</Label>
         <Switch isSelected={enabled} onChange={setEnabled} isDisabled={isPending}>
-          Show amplified analytics
+          显示放大后的统计数据
         </Switch>
         <Slider
-          label={`Multiplier: ${amplifyMultiplier}x`}
+          label={`显示倍数：${amplifyMultiplier} 倍`}
           minValue={1}
           maxValue={100}
           step={1}
@@ -78,10 +92,23 @@ export function WebsiteAmplifierSettings({ websiteId }: { websiteId: string }) {
           onChange={setGenerateFakeVisits}
           isDisabled={!enabled || isPending}
         >
-          Generate visits when there is no traffic
+          没有真实访问时自动补访问
         </Switch>
+        <Select
+          label="流量模板"
+          value={trafficTemplate}
+          onChange={value => setTrafficTemplate(value as TrafficTemplate)}
+          isDisabled={!enabled || !generateFakeVisits || isPending}
+          style={{ maxWidth: '360px' }}
+        >
+          {TRAFFIC_TEMPLATES.map(({ id, label }) => (
+            <ListItem key={id} id={id}>
+              {label}
+            </ListItem>
+          ))}
+        </Select>
         <Slider
-          label={`Fake visits per hour: ${fakeVisitsPerHour}`}
+          label={`每小时补访问：${fakeVisitsPerHour}`}
           minValue={0}
           maxValue={1000}
           step={10}

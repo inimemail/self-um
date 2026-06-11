@@ -8,12 +8,14 @@ import { json, unauthorized } from '@/lib/response';
 import { canUpdateWebsite } from '@/permissions';
 
 const INITIAL_FAKE_VISIT_LIMIT = 10;
+const INITIAL_FAKE_VISIT_WINDOW_MINUTES = 60;
 
 const amplifierSchema = z.object({
   enabled: z.boolean().optional(),
   amplifyMultiplier: z.number().min(1).max(100).optional(),
   generateFakeVisits: z.boolean().optional(),
   fakeVisitsPerHour: z.number().int().min(0).max(1000).optional(),
+  trafficTemplate: z.enum(['blog', 'forum', 'general', 'movie', 'shop']).optional(),
   amplifyPageviews: z.boolean().optional(),
   amplifyEvents: z.boolean().optional(),
   amplifyActiveUsers: z.boolean().optional(),
@@ -29,6 +31,7 @@ function serializeConfig(config: any) {
     amplifyMultiplier: Number(config.amplifyMultiplier),
     generateFakeVisits: config.generateFakeVisits,
     fakeVisitsPerHour: config.fakeVisitsPerHour,
+    trafficTemplate: config.trafficTemplate || DEFAULT_AMPLIFIER_CONFIG.trafficTemplate,
     amplifyPageviews: config.amplifyPageviews,
     amplifyEvents: config.amplifyEvents,
     amplifyActiveUsers: config.amplifyActiveUsers,
@@ -83,6 +86,7 @@ export async function POST(
       amplifyMultiplier: body.amplifyMultiplier ?? DEFAULT_AMPLIFIER_CONFIG.amplifyMultiplier,
       generateFakeVisits: body.generateFakeVisits ?? DEFAULT_AMPLIFIER_CONFIG.generateFakeVisits,
       fakeVisitsPerHour: body.fakeVisitsPerHour ?? DEFAULT_AMPLIFIER_CONFIG.fakeVisitsPerHour,
+      trafficTemplate: body.trafficTemplate ?? DEFAULT_AMPLIFIER_CONFIG.trafficTemplate,
       amplifyPageviews: body.amplifyPageviews ?? DEFAULT_AMPLIFIER_CONFIG.amplifyPageviews,
       amplifyEvents: body.amplifyEvents ?? DEFAULT_AMPLIFIER_CONFIG.amplifyEvents,
       amplifyActiveUsers: body.amplifyActiveUsers ?? DEFAULT_AMPLIFIER_CONFIG.amplifyActiveUsers,
@@ -97,6 +101,9 @@ export async function POST(
       }),
       ...(body.fakeVisitsPerHour !== undefined && {
         fakeVisitsPerHour: body.fakeVisitsPerHour,
+      }),
+      ...(body.trafficTemplate !== undefined && {
+        trafficTemplate: body.trafficTemplate,
       }),
       ...(body.amplifyPageviews !== undefined && {
         amplifyPageviews: body.amplifyPageviews,
@@ -118,7 +125,10 @@ export async function POST(
       Math.min(INITIAL_FAKE_VISIT_LIMIT, getVisitsForTick(config.fakeVisitsPerHour)),
     );
 
-    generated = await generateBatchFakeVisits(websiteId, initialVisits);
+    generated = await generateBatchFakeVisits(websiteId, initialVisits, {
+      template: config.trafficTemplate,
+      timeWindowMinutes: INITIAL_FAKE_VISIT_WINDOW_MINUTES,
+    });
   }
 
   return json({
