@@ -33,8 +33,8 @@ RUN npm run build-docker; \
       find .next -maxdepth 2 -type f 2>/dev/null | head -80 >&2 || true; \
       exit "${build_status}"; \
     fi; \
-    if [ ! -f .next/BUILD_ID ]; then \
-      echo "Next production build finished, but .next/BUILD_ID was not created." >&2; \
+    if [ ! -f .next/server/app-paths-manifest.json ] || [ ! -f .next/trace ]; then \
+      echo "Next production build finished, but required .next server artifacts were not created." >&2; \
       echo "Partial .next files:" >&2; \
       find .next -maxdepth 2 -type f 2>/dev/null | head -80 >&2 || true; \
       exit 1; \
