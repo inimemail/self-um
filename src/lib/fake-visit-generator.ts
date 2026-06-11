@@ -39,12 +39,27 @@ const REFERRER_DOMAINS = [
   null,
 ];
 
+const GENERATOR_TICKS_PER_HOUR = 12;
+
 function randomChoice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function randomRecentDate() {
   return subHours(new Date(), Math.random() * 2);
+}
+
+function getVisitsForTick(visitsPerHour: number) {
+  if (!Number.isFinite(visitsPerHour) || visitsPerHour <= 0) {
+    return 0;
+  }
+
+  const expectedVisits = visitsPerHour / GENERATOR_TICKS_PER_HOUR;
+  const baseVisits = Math.floor(expectedVisits);
+  const fractionalVisitChance = expectedVisits - baseVisits;
+  const jitter = baseVisits > 0 && Math.random() < 0.3 ? Math.floor(Math.random() * 3) - 1 : 0;
+
+  return Math.max(0, baseVisits + (Math.random() < fractionalVisitChance ? 1 : 0) + jitter);
 }
 
 export async function generateFakeVisit(websiteId: string, website?: WebsiteRecord) {
@@ -117,7 +132,7 @@ export async function runFakeVisitGenerator() {
   });
 
   for (const config of configs) {
-    const visitsToGenerate = Math.floor(config.fakeVisitsPerHour / 12);
+    const visitsToGenerate = getVisitsForTick(config.fakeVisitsPerHour);
 
     if (visitsToGenerate <= 0) {
       continue;
