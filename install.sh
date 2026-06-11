@@ -212,6 +212,44 @@ get_workdir() {
   echo ""
 }
 
+latest_backup_in_dir() {
+  local backup_dir="$1"
+
+  if [[ ! -d "${backup_dir}" ]]; then
+    echo ""
+    return
+  fi
+
+  local backups=()
+  shopt -s nullglob
+  backups=("${backup_dir}"/${APP_NAME}_backup_*.tar.gz)
+  shopt -u nullglob
+
+  if [[ ${#backups[@]} -eq 0 ]]; then
+    echo ""
+    return
+  fi
+
+  printf '%s\n' "${backups[@]}" | sort | tail -n 1
+}
+
+resolve_backup_path() {
+  local input_path="$1"
+  local default_backup="$2"
+
+  if [[ -z "${input_path}" ]]; then
+    echo "${default_backup}"
+    return
+  fi
+
+  if [[ -d "${input_path}" ]]; then
+    latest_backup_in_dir "${input_path}"
+    return
+  fi
+
+  echo "${input_path}"
+}
+
 get_uninstall_workdir() {
   local workdir
   workdir="$(get_workdir)"
@@ -468,12 +506,26 @@ enable_build_swap() {
 
 build_and_start() {
   local workdir="$1"
+  local log_file="${2:-}"
 
   enable_build_swap "${workdir}"
-  (
-    cd "${workdir}" || exit 1
-    compose_cmd up -d --build --force-recreate --remove-orphans
-  )
+
+  if [[ -n "${log_file}" ]]; then
+    info "构建并启动服务（可能需要几分钟）..."
+    if ! (
+      cd "${workdir}" || exit 1
+      compose_cmd up -d --build --force-recreate --remove-orphans >>"${log_file}" 2>&1
+    ); then
+      cleanup_build_swap
+      die "服务构建或启动失败，详细日志：${log_file}"
+    fi
+  else
+    (
+      cd "${workdir}" || exit 1
+      compose_cmd up -d --build --force-recreate --remove-orphans
+    )
+  fi
+
   cleanup_build_swap
 }
 
@@ -672,13 +724,29 @@ restore_service() {
   require_cmd tar
 
   local backup_path target_dir input_path input_backup env_file db_user db_name
+  local workdir default_backup_dir default_backup_path restore_log
 
-  read -r -p "备份压缩包路径: " input_backup
-  backup_path="${input_backup}"
-  [[ -f "${backup_path}" ]] || die "未找到备份文件。"
+  workdir="$(get_workdir)"
+  default_backup_dir="${workdir:-$DEFAULT_INSTALL_PATH}/backups"
+  default_backup_path="$(latest_backup_in_dir "${default_backup_dir}")"
+
+  if [[ -n "${default_backup_path}" ]]; then
+    info "检测到最新备份：${default_backup_path}"
+    read -r -p "备份压缩包路径或目录 [回车使用最新]: " input_backup
+  else
+    read -r -p "备份压缩包路径或目录: " input_backup
+  fi
+
+  backup_path="$(resolve_backup_path "${input_backup}" "${default_backup_path}")"
+  [[ -n "${backup_path}" ]] || die "未找到默认备份，请输入备份文件路径或备份目录。"
+  [[ -f "${backup_path}" ]] || die "未找到备份文件：${backup_path}"
+  info "使用备份：${backup_path}"
 
   read -r -p "恢复目标路径 [默认: ${DEFAULT_INSTALL_PATH}]: " input_path
   target_dir="${input_path:-$DEFAULT_INSTALL_PATH}"
+  mkdir -p "${target_dir}"
+  restore_log="${target_dir}/restore_$(date +"%Y%m%d_%H%M%S").log"
+  : > "${restore_log}"
 
   if [[ -d "${target_dir}" && -f "${target_dir}/docker-compose.yml" ]]; then
     warn "目标路径已有部署，恢复会覆盖现有内容和数据库：${target_dir}"
@@ -689,15 +757,18 @@ restore_service() {
       return
     fi
 
+    info "停止现有服务..."
     (
       cd "${target_dir}" || exit 1
-      compose_cmd down || true
+      compose_cmd down >>"${restore_log}" 2>&1 || true
     )
     rm -rf "${target_dir}/app" "${target_dir}/postgres-data"
   fi
 
-  mkdir -p "${target_dir}"
-  tar -xzf "${backup_path}" -C "${target_dir}"
+  info "解压备份..."
+  tar -xzf "${backup_path}" -C "${target_dir}" >>"${restore_log}" 2>&1 \
+    || die "备份解压失败，详细日志：${restore_log}"
+
   write_compose_file "${target_dir}"
   ensure_runtime_env_file "${target_dir}"
   ensure_data_permissions "${target_dir}"
@@ -709,23 +780,27 @@ restore_service() {
   db_user="$(read_env_value "${env_file}" POSTGRES_USER "umami")"
   db_name="$(read_env_value "${env_file}" POSTGRES_DB "umami")"
 
+  info "启动数据库..."
   (
     cd "${target_dir}" || exit 1
-    compose_cmd up -d "${DB_SERVICE}"
-  )
+    compose_cmd up -d "${DB_SERVICE}" >>"${restore_log}" 2>&1
+  ) || die "数据库容器启动失败，详细日志：${restore_log}"
+
   wait_for_db "${target_dir}" "${db_user}" "${db_name}"
 
   if [[ -f "${target_dir}/database.sql" ]]; then
+    info "恢复数据库..."
     (
       cd "${target_dir}" || exit 1
-      compose_cmd exec -T "${DB_SERVICE}" psql -U "${db_user}" -d "${db_name}" < "${target_dir}/database.sql"
-    )
+      compose_cmd exec -T "${DB_SERVICE}" psql -U "${db_user}" -d "${db_name}" < "${target_dir}/database.sql" >>"${restore_log}" 2>&1
+    ) || die "数据库恢复失败，详细日志：${restore_log}"
     rm -f "${target_dir}/database.sql"
   fi
 
-  build_and_start "${target_dir}"
+  build_and_start "${target_dir}" "${restore_log}"
 
   wait_for_app "${target_dir}"
+  info "恢复完成，详细日志：${restore_log}"
   print_access_info "${target_dir}/.env"
 }
 
