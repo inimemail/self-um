@@ -326,30 +326,6 @@ services:
     tmpfs:
       - /tmp:size=128m,mode=1777
 
-  amplifier:
-    image: self-um:latest
-    container_name: umami-amplifier
-    restart: unless-stopped
-    init: true
-    command: ["pnpm", "amplifier"]
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      APP_SECRET: ${APP_SECRET}
-      NODE_ENV: production
-    depends_on:
-      db:
-        condition: service_healthy
-      umami:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=128m,mode=1777
-
   db:
     image: postgres:15-alpine
     container_name: umami-db
@@ -496,7 +472,7 @@ build_and_start() {
   enable_build_swap "${workdir}"
   (
     cd "${workdir}" || exit 1
-    compose_cmd up -d --build --force-recreate
+    compose_cmd up -d --build --force-recreate --remove-orphans
   )
   cleanup_build_swap
 }

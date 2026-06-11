@@ -1,4 +1,4 @@
-import { subHours } from 'date-fns';
+import { subMinutes } from 'date-fns';
 import { uuid } from '@/lib/crypto';
 import prisma from '@/lib/prisma';
 
@@ -46,7 +46,7 @@ function randomChoice<T>(arr: T[]): T {
 }
 
 function randomRecentDate() {
-  return subHours(new Date(), Math.random() * 2);
+  return subMinutes(new Date(), Math.random() * 4);
 }
 
 export function getVisitsForTick(visitsPerHour: number) {
