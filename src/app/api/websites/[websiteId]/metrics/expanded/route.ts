@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EVENT_COLUMNS, EVENT_TYPE, SESSION_COLUMNS } from '@/lib/constants';
+import { applyAmplifier } from '@/lib/data-amplifier';
 import { getQueryFilters, parseRequest } from '@/lib/request';
 import { badRequest, json, unauthorized } from '@/lib/response';
 import { filterParams, searchParams, withDateRange } from '@/lib/schema';
@@ -44,21 +45,28 @@ export async function GET(
 
   if (SESSION_COLUMNS.includes(type)) {
     const data = await getSessionExpandedMetrics(websiteId, { type, limit, offset }, filters);
+    const amplifiedData = await applyAmplifier(websiteId, data, 'metrics');
 
-    return json(data);
+    return json(amplifiedData);
   }
 
   if (EVENT_COLUMNS.includes(type)) {
     if (type === 'event') {
       filters.eventType = EVENT_TYPE.customEvent;
-      return json(await getEventExpandedMetrics(websiteId, { type, limit, offset }, filters));
+      const data = await getEventExpandedMetrics(websiteId, { type, limit, offset }, filters);
+      const amplifiedData = await applyAmplifier(websiteId, data, 'events');
+      return json(amplifiedData);
     } else {
-      return json(await getPageviewExpandedMetrics(websiteId, { type, limit, offset }, filters));
+      const data = await getPageviewExpandedMetrics(websiteId, { type, limit, offset }, filters);
+      const amplifiedData = await applyAmplifier(websiteId, data, 'pageviews');
+      return json(amplifiedData);
     }
   }
 
   if (type === 'channel') {
-    return json(await getChannelExpandedMetrics(websiteId, filters));
+    const data = await getChannelExpandedMetrics(websiteId, filters);
+    const amplifiedData = await applyAmplifier(websiteId, data, 'metrics');
+    return json(amplifiedData);
   }
 
   return badRequest();

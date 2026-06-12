@@ -1,4 +1,5 @@
 import { getCompareDate } from '@/lib/date';
+import { applyAmplifier } from '@/lib/data-amplifier';
 import { getQueryFilters, parseRequest } from '@/lib/request';
 import { json, unauthorized } from '@/lib/response';
 import { filterParams, withDateRange } from '@/lib/schema';
@@ -41,5 +42,8 @@ export async function GET(
     endDate,
   });
 
-  return json({ data: { ...data, comparison } });
+  const amplifiedData = await applyAmplifier(websiteId, data, 'events');
+  const amplifiedComparison = await applyAmplifier(websiteId, comparison, 'events');
+
+  return json({ data: { ...amplifiedData, comparison: amplifiedComparison } });
 }

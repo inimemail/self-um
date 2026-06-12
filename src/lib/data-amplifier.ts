@@ -19,6 +19,7 @@ type NumericRecord = Record<string, number>;
 
 const CACHE_TTL = 60 * 1000;
 const configCache = new Map<string, { expiresAt: number; value: AmplifierConfig | null }>();
+const FUNCTION_NAME = 'getAmplifierConfig';
 
 export const DEFAULT_AMPLIFIER_CONFIG: AmplifierConfig = {
   enabled: false,
@@ -38,6 +39,7 @@ const DEFAULT_AMPLIFIED_FIELDS = new Set([
   'sessions',
   'total',
   'totaltime',
+  'uniqueEvents',
   'value',
   'views',
   'visitors',
@@ -53,38 +55,82 @@ export async function getAmplifierConfig(websiteId: string): Promise<AmplifierCo
     return cached.value;
   }
 
-  const config = await prisma.client.dataAmplifierConfig.findUnique({
-    where: { websiteId },
-  });
+  const rows = await prisma.rawQuery(
+    `
+    select
+      enabled,
+      amplify_multiplier as "amplifyMultiplier",
+      generate_fake_visits as "generateFakeVisits",
+      fake_visits_per_hour as "fakeVisitsPerHour",
+      amplify_pageviews as "amplifyPageviews",
+      amplify_events as "amplifyEvents",
+      amplify_active_users as "amplifyActiveUsers"
+    from data_amplifier_config
+    where website_id = {{websiteId::uuid}}
+    limit 1
+    `,
+    { websiteId },
+    FUNCTION_NAME,
+  );
 
-  const value = config
-    ? {
-        enabled: config.enabled,
-        amplifyMultiplier: Number(config.amplifyMultiplier),
-        generateFakeVisits: config.generateFakeVisits,
-        fakeVisitsPerHour: config.fakeVisitsPerHour,
-        trafficTemplate: (config.trafficTemplate || 'general') as TrafficTemplate,
-        amplifyPageviews: config.amplifyPageviews,
-        amplifyEvents: config.amplifyEvents,
-        amplifyActiveUsers: config.amplifyActiveUsers,
-      }
-    : null;
+  const config = rows?.[0];
+
+  const value = config ? normalizeAmplifierConfig(config) : null;
 
   configCache.set(websiteId, { value, expiresAt: Date.now() + CACHE_TTL });
 
   return value;
 }
 
+function normalizeAmplifierConfig(config: any): AmplifierConfig {
+  return {
+    enabled: config.enabled === true,
+    amplifyMultiplier: Number(config.amplifyMultiplier) || DEFAULT_AMPLIFIER_CONFIG.amplifyMultiplier,
+    generateFakeVisits: config.generateFakeVisits === true,
+    fakeVisitsPerHour: Number(config.fakeVisitsPerHour) || DEFAULT_AMPLIFIER_CONFIG.fakeVisitsPerHour,
+    trafficTemplate: 'general',
+    amplifyPageviews: config.amplifyPageviews !== false,
+    amplifyEvents: config.amplifyEvents !== false,
+    amplifyActiveUsers: config.amplifyActiveUsers !== false,
+  };
+}
+
 export function clearAmplifierCache(websiteId: string) {
   configCache.delete(websiteId);
 }
 
-export function amplifyValue(value: number, multiplier: number): number {
-  if (!Number.isFinite(value) || value === 0) {
+function toFiniteNumber(value: any): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.toNumber === 'function') {
+      const numberValue = value.toNumber();
+      return Number.isFinite(numberValue) ? numberValue : null;
+    }
+
+    if (typeof value.toString === 'function') {
+      const numberValue = Number(value.toString());
+      return Number.isFinite(numberValue) ? numberValue : null;
+    }
+  }
+
+  return null;
+}
+
+export function amplifyValue(value: any, multiplier: number): any {
+  const numberValue = toFiniteNumber(value);
+
+  if (numberValue === null || numberValue === 0) {
     return value;
   }
 
-  return Math.max(0, Math.round(value * multiplier));
+  return Math.max(0, Math.round(numberValue * multiplier));
 }
 
 export function amplifyDataRecursive(
@@ -92,7 +138,7 @@ export function amplifyDataRecursive(
   multiplier: number,
   fieldsToAmplify: Set<string> = DEFAULT_AMPLIFIED_FIELDS,
 ): any {
-  if (typeof data === 'number') {
+  if (typeof data === 'number' || typeof data === 'bigint') {
     return amplifyValue(data, multiplier);
   }
 
@@ -106,7 +152,7 @@ export function amplifyDataRecursive(
 
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => {
-      if (typeof value === 'number' && fieldsToAmplify.has(key)) {
+      if (fieldsToAmplify.has(key) && toFiniteNumber(value) !== null) {
         return [key, amplifyValue(value, multiplier)];
       }
 
@@ -127,7 +173,7 @@ function amplifyRecordValues(data: NumericRecord | null | undefined, multiplier:
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => [
       key,
-      typeof value === 'number' ? amplifyValue(value, multiplier) : value,
+      toFiniteNumber(value) !== null ? amplifyValue(value, multiplier) : value,
     ]),
   );
 }

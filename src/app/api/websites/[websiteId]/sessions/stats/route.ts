@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { applyAmplifier } from '@/lib/data-amplifier';
 import { getQueryFilters, parseRequest } from '@/lib/request';
 import { json, unauthorized } from '@/lib/response';
 import { filterParams } from '@/lib/schema';
@@ -38,5 +39,7 @@ export async function GET(
     return obj;
   }, {});
 
-  return json(data);
+  const amplifiedData = await applyAmplifier(websiteId, data, 'stats');
+
+  return json(amplifiedData);
 }
