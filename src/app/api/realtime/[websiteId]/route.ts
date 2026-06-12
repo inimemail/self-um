@@ -1,5 +1,6 @@
 import { startOfMinute, subMinutes } from 'date-fns';
 import { REALTIME_RANGE } from '@/lib/constants';
+import { applyRealtimeAmplifier } from '@/lib/data-amplifier';
 import { getQueryFilters, parseRequest } from '@/lib/request';
 import { json, unauthorized } from '@/lib/response';
 import { canViewWebsite } from '@/permissions';
@@ -31,6 +32,7 @@ export async function GET(
   );
 
   const data = await getRealtimeData(websiteId, filters);
+  const amplifiedData = await applyRealtimeAmplifier(websiteId, data);
 
-  return json(data);
+  return json(amplifiedData);
 }

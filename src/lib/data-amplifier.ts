@@ -15,6 +15,8 @@ export type TrafficTemplate = 'blog' | 'forum' | 'general' | 'movie' | 'shop';
 
 export type AmplifierDataType = 'active' | 'events' | 'metrics' | 'pageviews' | 'stats';
 
+type NumericRecord = Record<string, number>;
+
 const CACHE_TTL = 60 * 1000;
 const configCache = new Map<string, { expiresAt: number; value: AmplifierConfig | null }>();
 
@@ -90,6 +92,10 @@ export function amplifyDataRecursive(
   multiplier: number,
   fieldsToAmplify: Set<string> = DEFAULT_AMPLIFIED_FIELDS,
 ): any {
+  if (typeof data === 'number') {
+    return amplifyValue(data, multiplier);
+  }
+
   if (Array.isArray(data)) {
     return data.map(item => amplifyDataRecursive(item, multiplier, fieldsToAmplify));
   }
@@ -110,6 +116,19 @@ export function amplifyDataRecursive(
 
       return [key, value];
     }),
+  );
+}
+
+function amplifyRecordValues(data: NumericRecord | null | undefined, multiplier: number) {
+  if (!data) {
+    return data;
+  }
+
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? amplifyValue(value, multiplier) : value,
+    ]),
   );
 }
 
@@ -139,4 +158,46 @@ export async function applyAmplifier(
   }
 
   return amplifyDataRecursive(data, config.amplifyMultiplier);
+}
+
+export async function applyRealtimeAmplifier(websiteId: string, data: any): Promise<any> {
+  const config = await getAmplifierConfig(websiteId);
+
+  if (!config || !config.enabled || !data) {
+    return data;
+  }
+
+  const multiplier = config.amplifyMultiplier;
+
+  return {
+    ...data,
+    countries: config.amplifyActiveUsers
+      ? amplifyRecordValues(data.countries, multiplier)
+      : data.countries,
+    urls: config.amplifyPageviews ? amplifyRecordValues(data.urls, multiplier) : data.urls,
+    referrers: config.amplifyPageviews
+      ? amplifyRecordValues(data.referrers, multiplier)
+      : data.referrers,
+    series: {
+      ...data.series,
+      views: config.amplifyPageviews
+        ? amplifyDataRecursive(data.series?.views, multiplier, new Set(['y']))
+        : data.series?.views,
+      visitors: config.amplifyActiveUsers
+        ? amplifyDataRecursive(data.series?.visitors, multiplier, new Set(['y']))
+        : data.series?.visitors,
+    },
+    totals: {
+      ...data.totals,
+      views: config.amplifyPageviews
+        ? amplifyValue(data.totals?.views, multiplier)
+        : data.totals?.views,
+      visitors: config.amplifyActiveUsers
+        ? amplifyValue(data.totals?.visitors, multiplier)
+        : data.totals?.visitors,
+      events: config.amplifyEvents
+        ? amplifyValue(data.totals?.events, multiplier)
+        : data.totals?.events,
+    },
+  };
 }
